@@ -4,6 +4,9 @@
 import Base.parse
 
 # Define element type and number of nodes in element
+element_has_nodes(::Type{Val{:S3R}}) = 3
+element_has_type( ::Type{Val{:S3R}}) = :Tri3
+
 element_has_nodes(::Type{Val{:C3D4}}) = 4
 element_has_type( ::Type{Val{:C3D4}}) = :Tet4
 
@@ -225,6 +228,18 @@ function parse_section(model, lines, ::Symbol, idx_start, idx_end, ::Type{Val{:S
     return
 end
 
+function parse_section(model, lines, ::Symbol, idx_start, idx_end, ::Type{Val{:DLOAD}})
+    pressureData = Dict{Int, Real}()
+    for line in lines[idx_start + 1: idx_end]
+        empty_or_comment_line(line) && continue
+        splitLine = split(line, ",")
+        element_id = parse(Int, splitLine[1])
+        element_pressure = parse(Float64, splitLine[3])
+        pressureData[element_id] = element_pressure
+    end
+    model["pressure_data"]= pressureData
+end
+
 """Find lines, which contain keywords, for example "*NODE"
 """
 function find_keywords(lines)
@@ -251,6 +266,7 @@ function parse_abaqus(fid::IOStream)
     model["element_sets"] = Dict{String, Vector{Int}}()
     model["surface_sets"] = Dict{String, Vector{Tuple{Int, Symbol}}}()
     model["surface_types"] = Dict{String, Symbol}()
+    model["pressure_data"]= Dict{String, Symbol}()
     keyword_sym::Symbol = :none
 
     lines = readlines(fid)
@@ -267,7 +283,7 @@ function parse_abaqus(fid::IOStream)
         if hasmethod(parse_section, args)
             parse_section(model, lines, k_sym, idx_start, idx_end-1, Val{k_sym})
         else
-            @warn("Unknown section: '$(keyword)'")
+            # @warn("Unknown section: '$(keyword)'")
         end
         idx_start = idx_end
     end
